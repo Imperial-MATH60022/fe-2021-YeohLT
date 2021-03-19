@@ -183,6 +183,7 @@ class FiniteElement(object):
         """
         
         Vmat = vandermonde_matrix(self.cell,self.degree,points,grad)
+        #print(Vmat)
         if grad == False:
             Amat = np.matmul(Vmat,self.basis_coefs)
         else:

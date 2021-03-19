@@ -5,6 +5,8 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.tri import Triangulation
 
+from .quadrature import gauss_quadrature
+
 
 class FunctionSpace(object):
 
@@ -202,4 +204,18 @@ class Function(object):
 
         :result: The integral (a scalar)."""
 
-        raise NotImplementedError
+        finele = self.function_space.element
+        QuadRule = gauss_quadrature(finele.cell,finele.degree)
+
+        PhiTab = finele.tabulate(QuadRule.points)
+        PhiW = np.dot(QuadRule.weights,PhiTab)
+
+        mesh = self.function_space.mesh
+        GlobInt = 0
+        for c in range(mesh.entity_counts[-1]):
+            Jdet = np.absolute(np.linalg.det(mesh.jacobian(c)))
+            FInt = np.dot(self.values[self.function_space.cell_nodes[c,:]],PhiW)
+            GlobInt += FInt*Jdet
+
+        return GlobInt
+        #raise NotImplementedError

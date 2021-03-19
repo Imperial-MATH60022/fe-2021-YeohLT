@@ -71,6 +71,10 @@ class Mesh(object):
         #: :class:`Mesh` is composed.
         self.cell = (0, ReferenceInterval, ReferenceTriangle)[self.dim]
 
+        #pre calculate gradPsi
+        cg1 = LagrangeElement(self.cell,1)
+        self.gradPsi = cg1.tabulate(np.array([[0,0]]),grad=True)
+
     def adjacency(self, dim1, dim2):
         """Return the set of `dim2` entities adjacent to each `dim1`
         entity. For example if `dim1==2` and `dim2==1` then return the list of
@@ -111,7 +115,18 @@ class Mesh(object):
         :result: The Jacobian for cell ``c``.
         """
 
-        raise NotImplementedError
+        vercoor = self.vertex_coords[self.cell_vertices[c,:],:]
+        print(vercoor)
+        JMat = np.zeros((self.dim,self.dim))
+        
+        for alp in range(0,self.dim):
+            for bet in range (0,self.dim):
+                JMat[alp,bet] = np.dot(vercoor[:,alp],self.gradPsi[0,:,bet])
+
+        return JMat
+
+        
+        #raise NotImplementedError
 
 
 class UnitIntervalMesh(Mesh):

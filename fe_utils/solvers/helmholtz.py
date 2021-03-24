@@ -15,7 +15,7 @@ def assemble(fs, f):
     the function space in which to solve and the right hand side
     function."""
 
-    raise NotImplementedError
+    #raise NotImplementedError
 
     # Create an appropriate (complete) quadrature rule.
 
@@ -25,10 +25,46 @@ def assemble(fs, f):
     # This creates a sparse matrix because creating a dense one may
     # well run your machine out of memory!
     A = sp.lil_matrix((fs.node_count, fs.node_count))
+    #A = np.zeros([fs.node_count,fs.node_count])
     l = np.zeros(fs.node_count)
+    #print (A)
 
     # Now loop over all the cells and assemble A and l
 
+    finele = fs.element
+    QuadRule = gauss_quadrature(finele.cell,2*finele.degree)
+    numq = QuadRule.points.shape[0]
+    
+    PhiTab = finele.tabulate(QuadRule.points)
+    gPhiTab = finele.tabulate(QuadRule.points,grad=True)
+    mesh = fs.mesh
+    M = fs.cell_nodes
+    
+    for c in range(0,mesh.entity_counts[-1]):
+        Jdet = np.absolute(np.linalg.det(mesh.jacobian(c)))
+        JinvT = np.transpose(np.linalg.inv(mesh.jacobian(c)))
+
+        for i in range(0,fs.element.node_count):
+            #do for RHS l 
+            ModW = np.multiply(QuadRule.weights,PhiTab[:,i])
+            PhiW = np.dot(ModW,PhiTab)
+            FInt = np.dot(f.values[M[c,:]],PhiW)
+            l[M[c,i]] += FInt*Jdet
+
+            #do for LHS A
+            for j in range(0,fs.element.node_count):
+                toadd = 0
+                for q in range(0,numq):
+                    PhiiPhij = PhiTab[q,i]*PhiTab[q,j]
+                    gdotg = np.dot(np.dot(JinvT,gPhiTab[q,i,:]),np.dot(JinvT,gPhiTab[q,j,:]))
+                    toadd += (gdotg+PhiiPhij)*QuadRule.weights[q]
+                #A[np.ix_([M[c,i]],[M[c,j]])] += toadd*Jdet
+                A[M[c,i],M[c,j]] += toadd*Jdet
+                #print(A)
+                
+    #print(M)
+    #print(A.toarray())
+    
     return A, l
 
 

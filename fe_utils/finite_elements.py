@@ -94,7 +94,7 @@ def vandermonde_matrix(cell, degree, points, grad=False):
                     yval = points[r,1]
 
                     for p in range(1,degree+1):
-                        print(p)
+                        #print(p)
                         #y has degree q
                         #case q=0
                         gradvec = [p*xval**(p-1),0]

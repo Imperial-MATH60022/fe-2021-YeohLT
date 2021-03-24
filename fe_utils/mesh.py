@@ -116,7 +116,7 @@ class Mesh(object):
         """
 
         vercoor = self.vertex_coords[self.cell_vertices[c,:],:]
-        print(vercoor)
+        #print(vercoor)
         JMat = np.zeros((self.dim,self.dim))
         
         for alp in range(0,self.dim):

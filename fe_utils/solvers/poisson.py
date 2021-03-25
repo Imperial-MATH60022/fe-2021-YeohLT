@@ -21,7 +21,6 @@ def assemble(fs, f):
     #raise NotImplementedError
 
     A = sp.lil_matrix((fs.node_count, fs.node_count))
-    #A = np.zeros([fs.node_count,fs.node_count])
     l = np.zeros(fs.node_count)
 
     finele = fs.element
@@ -52,10 +51,8 @@ def assemble(fs, f):
                     toadd += gdotg*QuadRule.weights[q]
                 #A[np.ix_([M[c,i]],[M[c,j]])] += toadd*Jdet
                 A[M[c,i],M[c,j]] += toadd*Jdet
-                #print(A)
-                
-    #print(M)
-    #print(A.toarray())
+
+    #set V_gamma  
     bdrnodes = boundary_nodes(fs)
     for r in bdrnodes:
         A[r,:] = 0

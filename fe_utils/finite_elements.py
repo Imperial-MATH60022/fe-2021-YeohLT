@@ -4,6 +4,7 @@ import numpy as np
 from .reference_elements import ReferenceInterval, ReferenceTriangle
 np.seterr(invalid='ignore', divide='ignore')
 
+from math import comb
 
 def lagrange_points(cell, degree):
     """Construct the locations of the equispaced Lagrange nodes on cell.
@@ -21,15 +22,13 @@ def lagrange_points(cell, degree):
 
     d = cell.dim
     p = degree
+    numpts = comb(p+d,d)
+    lagpts = np.zeros((numpts,d))
 
     if d == 1:
-        numpts = p+1
-        lagpts = np.zeros((numpts,1))
         for i in range (0,numpts):
             lagpts[i] = i/(numpts-1)
     else:
-        numpts = ((p+2)*(p+1))//2
-        lagpts = np.zeros((numpts,2))
         currpt = 0
         for i in range(0, p+1):
             for j in range(0, p+1-i):
@@ -53,67 +52,42 @@ def vandermonde_matrix(cell, degree, points, grad=False):
     The implementation of this function is left as an :ref:`exercise
     <ex-vandermonde>`.
     """
-    from math import factorial as mfact
-    numcol = mfact(degree+cell.dim)//mfact(degree)//mfact(cell.dim)
+    
+    totalcol = comb(degree+cell.dim,cell.dim)
     m = points.shape[0]
 
     if grad == False:
-        Vmat = np.zeros((m,numcol))
+        Vmat = np.zeros((m,totalcol))
     
-        #do col by col
         if cell.dim == 1:
-            for col in range(0,numcol):
-                for r in range(0,m):
-                    xval = points[r,0]
-                    Vmat[r,col] = xval**col
-        else:   
-            colnum = 0
-            for p in range(0,degree+1):
-                #y has degree q
-                for q in range(0,p+1):
-                    #r for row
-                    for r in range(0,m):
-                        xval = points[r,0]
-                        yval = points[r,1]
-                        Vmat[r,colnum] = (yval**q)*(xval**(p-q))
-                    colnum += 1
-    else:
-        Vmat = np.zeros((m,numcol,cell.dim))
-        #do col by col
+            for colnum in range(0,degree+1):
+                Vmat[:,colnum] = np.power(points[:,0],colnum)
+
+        else:               
+            for s in range(0,degree+1): #total power of monomial
+                for q in range(0,s+1): #power for y
+                    colnum = (s+1)*(s)//2 + q 
+                    Vmat[:,colnum] = np.power(points[:,0],s-q)*np.power(points[:,1],q)
+
+    else: #grad == True
+        Vmat = np.zeros((m,totalcol,cell.dim))
+
         if cell.dim == 1:
-            for col in range(1,numcol):
-                for r in range(0,m):
-                    xval = points[r,0]
-                    Vmat[r,col,0] = col*xval**(col-1)
-        else:   
-            if numcol>1:               
-                #r for row
-                for r in range(0,m):
-                    colnum = 1
-                    xval = points[r,0]
-                    yval = points[r,1]
+            for colnum in range(1,degree+1):
+                Vmat[:,colnum,0] = colnum*np.power(points[:,0],colnum-1)
 
-                    for p in range(1,degree+1):
-                        #print(p)
-                        #y has degree q
-                        #case q=0
-                        gradvec = [p*xval**(p-1),0]
-                        Vmat[r,colnum,:] = np.nan_to_num(gradvec,nan=0.0)
-                        colnum += 1
+        else:               
+            for s in range(0,degree+1):
+                for q in range(1,s+1):
+                    #do for d/dx: x has power q
+                    colnum = (s+2)*(s+1)//2 - q - 1
+                    Vmat[:,colnum,0] = q*np.power(points[:,0],q-1)*np.power(points[:,1],s-q)
 
-                        #case q = 1 to (p-1)
-                        for q in range(1,p):
-                            gradvec = [(p-q)*(yval**q)*(xval**(p-q-1)),q*(yval**(q-1))*(xval**(p-q))]
-                            Vmat[r,colnum,:] = np.nan_to_num(gradvec,nan=0.0)
-                            colnum += 1
-
-                        #case q = p
-                        gradvec = [0,p*yval**(p-1)]
-                        Vmat[r,colnum,:] = np.nan_to_num(gradvec,nan=0.0)
-                        colnum += 1
+                    #do for d/dy: y has power q
+                    colnum = (s+1)*(s)//2 + q
+                    Vmat[:,colnum,1] = q*np.power(points[:,0],s-q)*np.power(points[:,1],q-1)
 
     return Vmat
-
 
 class FiniteElement(object):
     def __init__(self, cell, degree, nodes, entity_nodes=None):
@@ -262,7 +236,7 @@ class LagrangeElement(FiniteElement):
             node20 = node00
 
             for i in range(0,m):
-                #ptvtx = False
+
                 pt = nodes[i,:]
                 
                 if cell.point_in_entity(pt,[0,0]) == True:
@@ -293,7 +267,5 @@ class LagrangeElement(FiniteElement):
                           1: node11,
                           2: node12},
                       2: {0: node20}}
-       
-        #print(entnod)
 
         super(LagrangeElement, self).__init__(cell, degree, nodes, entnod)

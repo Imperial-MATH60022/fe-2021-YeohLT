@@ -116,12 +116,8 @@ class Mesh(object):
         """
 
         vercoor = self.vertex_coords[self.cell_vertices[c,:],:]
-        #print(vercoor)
-        JMat = np.zeros((self.dim,self.dim))
-        
-        for alp in range(0,self.dim):
-            for bet in range (0,self.dim):
-                JMat[alp,bet] = np.dot(vercoor[:,alp],self.gradPsi[0,:,bet])
+
+        JMat = np.matmul(np.transpose(vercoor),self.gradPsi[0,:,:])
 
         return JMat
 

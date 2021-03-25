@@ -25,9 +25,7 @@ def assemble(fs, f):
     # This creates a sparse matrix because creating a dense one may
     # well run your machine out of memory!
     A = sp.lil_matrix((fs.node_count, fs.node_count))
-    #A = np.zeros([fs.node_count,fs.node_count])
     l = np.zeros(fs.node_count)
-    #print (A)
 
     # Now loop over all the cells and assemble A and l
 
@@ -58,12 +56,9 @@ def assemble(fs, f):
                     PhiiPhij = PhiTab[q,i]*PhiTab[q,j]
                     gdotg = np.dot(np.dot(JinvT,gPhiTab[q,i,:]),np.dot(JinvT,gPhiTab[q,j,:]))
                     toadd += (gdotg+PhiiPhij)*QuadRule.weights[q]
+                
                 #A[np.ix_([M[c,i]],[M[c,j]])] += toadd*Jdet
                 A[M[c,i],M[c,j]] += toadd*Jdet
-                #print(A)
-                
-    #print(M)
-    #print(A.toarray())
     
     return A, l
 

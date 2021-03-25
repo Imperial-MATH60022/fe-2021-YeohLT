@@ -5,6 +5,8 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.tri import Triangulation
 
+from .quadrature import gauss_quadrature
+
 
 class FunctionSpace(object):
 
@@ -22,8 +24,8 @@ class FunctionSpace(object):
         self.mesh = mesh
         #: The :class:`~.finite_elements.FiniteElement` of this space.
         self.element = element
-
-        raise NotImplementedError
+        
+        #raise NotImplementedError
 
         # Implement global numbering in order to produce the global
         # cell node list for this space.
@@ -31,7 +33,35 @@ class FunctionSpace(object):
         #: which each row lists the global nodes incident to the corresponding
         #: cell. The implementation of this member is left as an
         #: :ref:`exercise <ex-function-space>`
-        self.cell_nodes = None
+
+        d = mesh.dim
+        #number of cells (rows), c
+        c = mesh.entity_counts[-1]
+        #nodes per cell
+        npc = element.node_count
+        cnode = np.zeros((c,npc),dtype=int)
+
+        for delta in range(0,d):
+            Ndelta = element.nodes_per_entity[delta]
+            imat = mesh.adjacency(d,delta)
+            ehatdelta = imat.shape[1]
+
+            for eps in range(0,ehatdelta):
+                for r in range(0,c):
+
+                    i = imat[r,eps]
+                    Gdi = np.dot(element.nodes_per_entity[0:delta],mesh.entity_counts[0:delta]) + i*Ndelta
+                    cnode[r,element.entity_nodes[delta][eps]] = range(Gdi,Gdi+Ndelta)
+                    
+        #case delta = d
+        Ndelta = element.nodes_per_entity[-1]
+        
+        for r in range(0,c):
+            Gdi = np.dot(element.nodes_per_entity[0:d],mesh.entity_counts[0:d]) + r*Ndelta
+            cnode[r,element.entity_nodes[d][0]] = range(Gdi,Gdi+Ndelta)
+
+        self.cell_nodes = cnode
+        
 
         #: The total number of nodes in the function space.
         self.node_count = np.dot(element.nodes_per_entity, mesh.entity_counts)
@@ -167,4 +197,18 @@ class Function(object):
 
         :result: The integral (a scalar)."""
 
-        raise NotImplementedError
+        finele = self.function_space.element
+        QuadRule = gauss_quadrature(finele.cell,finele.degree)
+
+        PhiTab = finele.tabulate(QuadRule.points)
+        PhiW = np.dot(QuadRule.weights,PhiTab)
+
+        mesh = self.function_space.mesh
+        GlobInt = 0
+        for c in range(mesh.entity_counts[-1]):
+            Jdet = np.absolute(np.linalg.det(mesh.jacobian(c)))
+            FInt = np.dot(self.values[self.function_space.cell_nodes[c,:]],PhiW)
+            GlobInt += FInt*Jdet
+
+        return GlobInt
+        #raise NotImplementedError

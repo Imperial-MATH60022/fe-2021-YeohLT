@@ -4,6 +4,7 @@ import numpy as np
 from .reference_elements import ReferenceInterval, ReferenceTriangle
 np.seterr(invalid='ignore', divide='ignore')
 
+from math import comb
 
 def lagrange_points(cell, degree):
     """Construct the locations of the equispaced Lagrange nodes on cell.
@@ -19,7 +20,22 @@ def lagrange_points(cell, degree):
 
     """
 
-    raise NotImplementedError
+    d = cell.dim
+    p = degree
+    numpts = comb(p+d,d)
+    lagpts = np.zeros((numpts,d))
+
+    if d == 1:
+        for i in range (0,numpts):
+            lagpts[i] = i/(numpts-1)
+    else:
+        currpt = 0
+        for i in range(0, p+1):
+            for j in range(0, p+1-i):
+                lagpts[currpt,:] = [j/p,i/p]
+                currpt += 1
+
+    return lagpts
 
 
 def vandermonde_matrix(cell, degree, points, grad=False):
@@ -36,9 +52,42 @@ def vandermonde_matrix(cell, degree, points, grad=False):
     The implementation of this function is left as an :ref:`exercise
     <ex-vandermonde>`.
     """
+    
+    totalcol = comb(degree+cell.dim,cell.dim)
+    m = points.shape[0]
 
-    raise NotImplementedError
+    if grad == False:
+        Vmat = np.zeros((m,totalcol))
+    
+        if cell.dim == 1:
+            for colnum in range(0,degree+1):
+                Vmat[:,colnum] = np.power(points[:,0],colnum)
 
+        else:               
+            for s in range(0,degree+1): #total power of monomial
+                for q in range(0,s+1): #power for y
+                    colnum = (s+1)*(s)//2 + q 
+                    Vmat[:,colnum] = np.power(points[:,0],s-q)*np.power(points[:,1],q)
+
+    else: #grad == True
+        Vmat = np.zeros((m,totalcol,cell.dim))
+
+        if cell.dim == 1:
+            for colnum in range(1,degree+1):
+                Vmat[:,colnum,0] = colnum*np.power(points[:,0],colnum-1)
+
+        else:               
+            for s in range(0,degree+1):
+                for q in range(1,s+1):
+                    #do for d/dx: x has power q
+                    colnum = (s+2)*(s+1)//2 - q - 1
+                    Vmat[:,colnum,0] = q*np.power(points[:,0],q-1)*np.power(points[:,1],s-q)
+
+                    #do for d/dy: y has power q
+                    colnum = (s+1)*(s)//2 + q
+                    Vmat[:,colnum,1] = q*np.power(points[:,0],s-q)*np.power(points[:,1],q-1)
+
+    return Vmat
 
 class FiniteElement(object):
     def __init__(self, cell, degree, nodes, entity_nodes=None):
@@ -79,7 +128,9 @@ class FiniteElement(object):
         # Replace this exception with some code which sets
         # self.basis_coefs
         # to an array of polynomial coefficients defining the basis functions.
-        raise NotImplementedError
+
+        Vmat = vandermonde_matrix(cell,degree,nodes)
+        self.basis_coefs = np.linalg.inv(Vmat)
 
         #: The number of nodes in this element.
         self.node_count = nodes.shape[0]
@@ -104,8 +155,17 @@ class FiniteElement(object):
         <ex-tabulate>`.
 
         """
+        
+        Vmat = vandermonde_matrix(self.cell,self.degree,points,grad)
+        #print(Vmat)
+        if grad == False:
+            Amat = np.matmul(Vmat,self.basis_coefs)
+        else:
+            Amat = np.einsum("ijk,jl->ilk",Vmat,self.basis_coefs)
+        
+        return Amat
 
-        raise NotImplementedError
+        #raise NotImplementedError
 
     def interpolate(self, fn):
         """Interpolate fn onto this finite element by evaluating it
@@ -121,8 +181,13 @@ class FiniteElement(object):
         <ex-interpolate>`.
 
         """
+        m = self.nodes.shape[0]
+        fvec = np.zeros(m)
 
-        raise NotImplementedError
+        for p in range(0,m):
+            fvec[p] = fn(self.nodes[p,:])
+        
+        return fvec
 
     def __repr__(self):
         return "%s(%s, %s)" % (self.__class__.__name__,
@@ -144,9 +209,63 @@ class LagrangeElement(FiniteElement):
         <ex-lagrange-element>`.
         """
 
-        raise NotImplementedError
+        nodes = lagrange_points(cell,degree)
+
+
+        #raise NotImplementedError
         # Use lagrange_points to obtain the set of nodes.  Once you
         # have obtained nodes, the following line will call the
         # __init__ method on the FiniteElement class to set up the
         # basis coefficients.
-        super(LagrangeElement, self).__init__(cell, degree, nodes)
+        
+
+        p = degree
+
+        if cell.dim == 1:
+            entnod = {0: {0: [0],
+                          1: [p]},
+                      1: {0: range(1,p)}}
+        else:
+            m = nodes.shape[0]        
+            node00 = np.array([],dtype=int)
+            node01 = node00
+            node02 = node00
+            node10 = node00
+            node11 = node00
+            node12 = node00
+            node20 = node00
+
+            for i in range(0,m):
+
+                pt = nodes[i,:]
+                
+                if cell.point_in_entity(pt,[0,0]) == True:
+                    node00 = np.append(node00,[i])
+
+                elif cell.point_in_entity(pt,[0,1]) == True:
+                    node01 = np.append(node01,[i])
+
+                elif cell.point_in_entity(pt,[0,2]) == True:
+                    node02 = np.append(node02,[i])
+
+                elif cell.point_in_entity(pt,[1,0]) == True:
+                    node10 = np.append(node10,[i])
+
+                elif cell.point_in_entity(pt,[1,1]) == True:
+                    node11 = np.append(node11,[i])
+
+                elif cell.point_in_entity(pt,[1,2]) == True:
+                    node12 = np.append(node12,[i])
+
+                else:
+                    node20 = np.append(node20,[i])
+
+            entnod = {0: {0: node00,
+                          1: node01,
+                          2: node02},
+                      1: {0: node10,
+                          1: node11,
+                          2: node12},
+                      2: {0: node20}}
+
+        super(LagrangeElement, self).__init__(cell, degree, nodes, entnod)
